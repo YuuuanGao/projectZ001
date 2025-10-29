@@ -14,7 +14,6 @@ const NUM_INSIDE = 10;
 const NUM_EACH_OUTSIDE = 3;
 const outsideImages = ["1.png", "2.png", "3.png", "4.png"];
 
-// Z路径轮廓
 const zContour = [
   [277.73, 83.5], [97.90, 83.5], [71.59, 109.82], [71.59, 129.24],
   [97.90, 155.56], [195.02, 155.56], [210.68, 178.11], [82.86, 506.43],
@@ -25,11 +24,22 @@ const zContour = [
 ];
 
 let yOffset = 0;
+let gyroX = 0;
+let gyroY = 0;
+let loaded = false;
 
 function preload() {
-  imgs.base = loadImage("type.png");
+  imgs.base = loadImage("type.png", () => checkImagesLoaded(), () => checkImagesLoaded());
   for (let name of outsideImages) {
-    imgs[name] = loadImage(name);
+    imgs[name] = loadImage(name, () => checkImagesLoaded(), () => checkImagesLoaded());
+  }
+}
+
+let imagesLoaded = 0;
+function checkImagesLoaded() {
+  imagesLoaded++;
+  if (imagesLoaded >= 1 + outsideImages.length) {
+    loaded = true;
   }
 }
 
@@ -38,14 +48,12 @@ function setup() {
   engine = Engine.create();
   let world = engine.world;
 
-  // 垂直居中
   let allY = zContour.map(p => p[1]);
   let minY = Math.min(...allY);
   let maxY = Math.max(...allY);
   let shapeHeight = maxY - minY;
   yOffset = height / 2 - (minY + shapeHeight / 2);
 
-  // 轮廓边界
   for (let i = 0; i < zContour.length - 1; i++) {
     let a = zContour[i];
     let b = zContour[i + 1];
@@ -65,7 +73,7 @@ function setup() {
     World.add(world, wall);
   }
 
-  // Z内图像球
+  // type.png balls
   for (let i = 0; i < NUM_INSIDE; i++) {
     let x = 190;
     let y = 300 + yOffset;
@@ -74,11 +82,12 @@ function setup() {
       frictionAir: 0.2
     });
     ball.imageKey = "base";
+    ball.isInside = true;
     imageBalls.push(ball);
     World.add(world, ball);
   }
 
-  // Z外图像球
+  // outside balls
   for (let key of outsideImages) {
     for (let i = 0; i < NUM_EACH_OUTSIDE; i++) {
       let x = random(30, 345);
@@ -88,33 +97,64 @@ function setup() {
         frictionAir: 0.2
       });
       ball.imageKey = key;
+      ball.isInside = false;
       outsideBalls.push(ball);
       World.add(world, ball);
     }
   }
+
+  // setup gyro listener
+  if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+    DeviceOrientationEvent.requestPermission()
+      .then(response => {
+        if (response === "granted") {
+          window.addEventListener("deviceorientation", handleGyro);
+        }
+      })
+      .catch(console.error);
+  } else {
+    window.addEventListener("deviceorientation", handleGyro);
+  }
+}
+
+function handleGyro(event) {
+  gyroX = event.gamma || 0;
+  gyroY = event.beta || 0;
 }
 
 function draw() {
-  background('#3273dc');
-  Engine.update(engine);
+  try {
+    if (!loaded) {
+      background(0);
+      fill(255);
+      textAlign(CENTER, CENTER);
+      text("Loading...", width / 2, height / 2);
+      return;
+    }
 
-  fill(255);
-  noStroke();
-  beginShape();
-  for (let pt of zContour) {
-    vertex(pt[0], pt[1] + yOffset);
-  }
-  endShape(CLOSE);
+    background('#3273dc');
+    Engine.update(engine);
 
-  drawBodies(imageBalls);
-  drawBodies(outsideBalls);
+    fill(255);
+    noStroke();
+    beginShape();
+    for (let pt of zContour) {
+      vertex(pt[0], pt[1] + yOffset);
+    }
+    endShape(CLOSE);
 
-  let allBalls = imageBalls.concat(outsideBalls);
-  let forceScale = 0.0005;
-  for (let b of allBalls) {
-    let fx = (window.gyroX || 0) * forceScale;
-    let fy = (window.gyroY || 0) * forceScale;
-    Body.applyForce(b, b.position, { x: fx, y: fy });
+    drawBodies(imageBalls);
+    drawBodies(outsideBalls);
+
+    let forceScale = 0.0005;
+    let allBalls = imageBalls.concat(outsideBalls);
+    for (let b of allBalls) {
+      let fx = gyroX * forceScale;
+      let fy = gyroY * forceScale;
+      Body.applyForce(b, b.position, { x: fx, y: fy });
+    }
+  } catch (e) {
+    console.error("Draw error:", e);
   }
 }
 
