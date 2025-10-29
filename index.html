@@ -29,31 +29,39 @@
   </head>
   <body>
     <button id="gyro-btn">启用陀螺仪</button>
+    
     <script src="https://cdn.jsdelivr.net/npm/p5@1.6.0/lib/p5.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
     <script>
-      const gyroBtn = document.getElementById("gyro-btn");
-      gyroBtn.addEventListener("click", () => {
-        if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+      document.getElementById("gyro-btn").addEventListener("click", () => {
+        if (typeof DeviceOrientationEvent !== "undefined" &&
+            typeof DeviceOrientationEvent.requestPermission === "function") {
           DeviceOrientationEvent.requestPermission()
             .then(response => {
               if (response === "granted") {
                 window.addEventListener("deviceorientation", handleGyro);
-                gyroBtn.style.display = "none";
+                document.getElementById("gyro-btn").style.display = "none";
               } else {
-                alert("需要启用陀螺仪权限");
+                alert("请在系统设置中启用陀螺仪访问权限");
               }
             })
             .catch(err => {
               alert("陀螺仪权限请求失败: " + err);
             });
         } else {
-          // Android 或已允许权限的设备
+          // Android 或老版 iOS
           window.addEventListener("deviceorientation", handleGyro);
-          gyroBtn.style.display = "none";
+          document.getElementById("gyro-btn").style.display = "none";
         }
       });
+
+      function handleGyro(event) {
+        window.gyroX = event.gamma || 0;
+        window.gyroY = event.beta || 0;
+        console.log("陀螺仪数据: ", gyroX, gyroY);
+      }
     </script>
+
     <script src="sketch.js"></script>
   </body>
-</html>  
+</html>
