@@ -1,8 +1,8 @@
 let Engine = Matter.Engine,
-  World = Matter.World,
-  Bodies = Matter.Bodies,
-  Body = Matter.Body,
-  engine;
+    World = Matter.World,
+    Bodies = Matter.Bodies,
+    Body = Matter.Body,
+    engine;
 
 let imageBalls = [];
 let outsideBalls = [];
@@ -14,7 +14,7 @@ const NUM_INSIDE = 10;
 const NUM_EACH_OUTSIDE = 3;
 const outsideImages = ["1.png", "2.png", "3.png", "4.png"];
 
-// Z 字轮廓路径
+// Z路径轮廓
 const zContour = [
   [277.73, 83.5], [97.90, 83.5], [71.59, 109.82], [71.59, 129.24],
   [97.90, 155.56], [195.02, 155.56], [210.68, 178.11], [82.86, 506.43],
@@ -25,9 +25,6 @@ const zContour = [
 ];
 
 let yOffset = 0;
-let gyroX = 0;
-let gyroY = 0;
-let world;
 
 function preload() {
   imgs.base = loadImage("type.png");
@@ -39,16 +36,16 @@ function preload() {
 function setup() {
   createCanvas(canvasW, canvasH);
   engine = Engine.create();
-  world = engine.world;
+  let world = engine.world;
 
-  // Z 字上下居中
+  // 垂直居中
   let allY = zContour.map(p => p[1]);
   let minY = Math.min(...allY);
   let maxY = Math.max(...allY);
   let shapeHeight = maxY - minY;
   yOffset = height / 2 - (minY + shapeHeight / 2);
 
-  // 建立 Z 字边缘的墙体
+  // 轮廓边界
   for (let i = 0; i < zContour.length - 1; i++) {
     let a = zContour[i];
     let b = zContour[i + 1];
@@ -68,21 +65,20 @@ function setup() {
     World.add(world, wall);
   }
 
-  // 内部 ball（type.png）
+  // Z内图像球
   for (let i = 0; i < NUM_INSIDE; i++) {
-    let x = random(120, 240);
-    let y = random(280, 420) + yOffset;
+    let x = 190;
+    let y = 300 + yOffset;
     let ball = Bodies.rectangle(x, y, 44, 10, {
       restitution: 0.5,
       frictionAir: 0.2
     });
     ball.imageKey = "base";
-    ball.isInside = true;
     imageBalls.push(ball);
     World.add(world, ball);
   }
 
-  // 外部 ball（1~4.png）
+  // Z外图像球
   for (let key of outsideImages) {
     for (let i = 0; i < NUM_EACH_OUTSIDE; i++) {
       let x = random(30, 345);
@@ -92,27 +88,16 @@ function setup() {
         frictionAir: 0.2
       });
       ball.imageKey = key;
-      ball.isInside = false;
       outsideBalls.push(ball);
       World.add(world, ball);
     }
   }
-
-  // ✅ 将 handleGyro 注册给全局作用域，防止找不到变量
-  window.handleGyro = handleGyro;
-}
-
-function handleGyro(event) {
-  gyroX = event.gamma || 0;
-  gyroY = event.beta || 0;
-  console.log("陀螺仪数据:", gyroX.toFixed(2), gyroY.toFixed(2));
 }
 
 function draw() {
   background('#3273dc');
   Engine.update(engine);
 
-  // 绘制 Z 区域
   fill(255);
   noStroke();
   beginShape();
@@ -121,16 +106,14 @@ function draw() {
   }
   endShape(CLOSE);
 
-  // 绘制所有物体
   drawBodies(imageBalls);
   drawBodies(outsideBalls);
 
-  // 应用陀螺仪力
   let allBalls = imageBalls.concat(outsideBalls);
   let forceScale = 0.0005;
   for (let b of allBalls) {
-    let fx = gyroX * forceScale;
-    let fy = gyroY * forceScale;
+    let fx = (window.gyroX || 0) * forceScale;
+    let fy = (window.gyroY || 0) * forceScale;
     Body.applyForce(b, b.position, { x: fx, y: fy });
   }
 }
