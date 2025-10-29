@@ -14,6 +14,7 @@ const NUM_INSIDE = 10;
 const NUM_EACH_OUTSIDE = 3;
 const outsideImages = ["1.png", "2.png", "3.png", "4.png"];
 
+// p5.js contour path
 const zContour = [
   [277.73, 83.5], [97.90, 83.5], [71.59, 109.82], [71.59, 129.24],
   [97.90, 155.56], [195.02, 155.56], [210.68, 178.11], [82.86, 506.43],
@@ -26,20 +27,11 @@ const zContour = [
 let yOffset = 0;
 let gyroX = 0;
 let gyroY = 0;
-let loaded = false;
 
 function preload() {
-  imgs.base = loadImage("type.png", () => checkImagesLoaded(), () => checkImagesLoaded());
+  imgs.base = loadImage("type.png");
   for (let name of outsideImages) {
-    imgs[name] = loadImage(name, () => checkImagesLoaded(), () => checkImagesLoaded());
-  }
-}
-
-let imagesLoaded = 0;
-function checkImagesLoaded() {
-  imagesLoaded++;
-  if (imagesLoaded >= 1 + outsideImages.length) {
-    loaded = true;
+    imgs[name] = loadImage(name);
   }
 }
 
@@ -48,12 +40,14 @@ function setup() {
   engine = Engine.create();
   let world = engine.world;
 
+  // calculate vertical center offset
   let allY = zContour.map(p => p[1]);
   let minY = Math.min(...allY);
   let maxY = Math.max(...allY);
   let shapeHeight = maxY - minY;
   yOffset = height / 2 - (minY + shapeHeight / 2);
 
+  // create Z walls from segments
   for (let i = 0; i < zContour.length - 1; i++) {
     let a = zContour[i];
     let b = zContour[i + 1];
@@ -73,7 +67,7 @@ function setup() {
     World.add(world, wall);
   }
 
-  // type.png balls
+  // create inside image balls (type.png only)
   for (let i = 0; i < NUM_INSIDE; i++) {
     let x = 190;
     let y = 300 + yOffset;
@@ -87,7 +81,7 @@ function setup() {
     World.add(world, ball);
   }
 
-  // outside balls
+  // create outside image balls (only 1.png~4.png)
   for (let key of outsideImages) {
     for (let i = 0; i < NUM_EACH_OUTSIDE; i++) {
       let x = random(30, 345);
@@ -103,58 +97,69 @@ function setup() {
     }
   }
 
-  // setup gyro listener
-  if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
-    DeviceOrientationEvent.requestPermission()
-      .then(response => {
-        if (response === "granted") {
-          window.addEventListener("deviceorientation", handleGyro);
-        }
-      })
-      .catch(console.error);
-  } else {
-    window.addEventListener("deviceorientation", handleGyro);
-  }
+  // ⬇️ 修复：添加陀螺仪按钮绑定逻辑
+  setupGyroButton();
 }
 
+// ⬅️ 修复关键函数：绑定按钮后再注册 handleGyro
+function setupGyroButton() {
+  const gyroBtn = document.getElementById("gyro-btn");
+  if (!gyroBtn) return;
+
+  gyroBtn.addEventListener("click", () => {
+    if (
+      typeof DeviceOrientationEvent !== "undefined" &&
+      typeof DeviceOrientationEvent.requestPermission === "function"
+    ) {
+      DeviceOrientationEvent.requestPermission()
+        .then((response) => {
+          if (response === "granted") {
+            window.addEventListener("deviceorientation", handleGyro);
+            gyroBtn.style.display = "none";
+          } else {
+            alert("需要启用陀螺仪权限");
+          }
+        })
+        .catch((err) => {
+          alert("陀螺仪权限请求失败: " + err);
+        });
+    } else {
+      // Android 或已授权设备
+      window.addEventListener("deviceorientation", handleGyro);
+      gyroBtn.style.display = "none";
+    }
+  });
+}
+
+// ⬅️ 必须要定义在 sketch.js 里，避免报错
 function handleGyro(event) {
-  gyroX = event.gamma || 0;
-  gyroY = event.beta || 0;
+  gyroX = event.gamma || 0; // 左右倾斜
+  gyroY = event.beta || 0;  // 前后倾斜
 }
 
 function draw() {
-  try {
-    if (!loaded) {
-      background(0);
-      fill(255);
-      textAlign(CENTER, CENTER);
-      text("Loading...", width / 2, height / 2);
-      return;
-    }
+  background('#3273dc');
+  Engine.update(engine);
 
-    background('#3273dc');
-    Engine.update(engine);
+  // draw Z shape visually
+  fill(255);
+  noStroke();
+  beginShape();
+  for (let pt of zContour) {
+    vertex(pt[0], pt[1] + yOffset);
+  }
+  endShape(CLOSE);
 
-    fill(255);
-    noStroke();
-    beginShape();
-    for (let pt of zContour) {
-      vertex(pt[0], pt[1] + yOffset);
-    }
-    endShape(CLOSE);
+  drawBodies(imageBalls);
+  drawBodies(outsideBalls);
 
-    drawBodies(imageBalls);
-    drawBodies(outsideBalls);
-
-    let forceScale = 0.0005;
-    let allBalls = imageBalls.concat(outsideBalls);
-    for (let b of allBalls) {
-      let fx = gyroX * forceScale;
-      let fy = gyroY * forceScale;
-      Body.applyForce(b, b.position, { x: fx, y: fy });
-    }
-  } catch (e) {
-    console.error("Draw error:", e);
+  // apply force based on device tilt
+  let allBalls = imageBalls.concat(outsideBalls);
+  let forceScale = 0.0005;
+  for (let b of allBalls) {
+    let fx = gyroX * forceScale;
+    let fy = gyroY * forceScale;
+    Body.applyForce(b, b.position, { x: fx, y: fy });
   }
 }
 
