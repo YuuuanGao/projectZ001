@@ -14,7 +14,6 @@ const NUM_INSIDE = 10;
 const NUM_EACH_OUTSIDE = 3;
 const outsideImages = ["1.png", "2.png", "3.png", "4.png"];
 
-// p5.js contour path
 const zContour = [
   [277.73, 83.5], [97.90, 83.5], [71.59, 109.82], [71.59, 129.24],
   [97.90, 155.56], [195.02, 155.56], [210.68, 178.11], [82.86, 506.43],
@@ -28,6 +27,12 @@ let yOffset = 0;
 let gyroX = 0;
 let gyroY = 0;
 
+// ✅ 注册为全局函数
+window.handleGyro = function (event) {
+  gyroX = event.gamma || 0;
+  gyroY = event.beta || 0;
+};
+
 function preload() {
   imgs.base = loadImage("type.png");
   for (let name of outsideImages) {
@@ -40,14 +45,14 @@ function setup() {
   engine = Engine.create();
   let world = engine.world;
 
-  // calculate vertical center offset
+  // center offset
   let allY = zContour.map(p => p[1]);
   let minY = Math.min(...allY);
   let maxY = Math.max(...allY);
   let shapeHeight = maxY - minY;
   yOffset = height / 2 - (minY + shapeHeight / 2);
 
-  // create Z walls from segments
+  // walls
   for (let i = 0; i < zContour.length - 1; i++) {
     let a = zContour[i];
     let b = zContour[i + 1];
@@ -67,7 +72,7 @@ function setup() {
     World.add(world, wall);
   }
 
-  // create inside image balls (type.png only)
+  // inside balls
   for (let i = 0; i < NUM_INSIDE; i++) {
     let x = 190;
     let y = 300 + yOffset;
@@ -81,7 +86,7 @@ function setup() {
     World.add(world, ball);
   }
 
-  // create outside image balls (only 1.png~4.png)
+  // outside balls
   for (let key of outsideImages) {
     for (let i = 0; i < NUM_EACH_OUTSIDE; i++) {
       let x = random(30, 345);
@@ -96,52 +101,13 @@ function setup() {
       World.add(world, ball);
     }
   }
-
-  // ⬇️ 修复：添加陀螺仪按钮绑定逻辑
-  setupGyroButton();
-}
-
-// ⬅️ 修复关键函数：绑定按钮后再注册 handleGyro
-function setupGyroButton() {
-  const gyroBtn = document.getElementById("gyro-btn");
-  if (!gyroBtn) return;
-
-  gyroBtn.addEventListener("click", () => {
-    if (
-      typeof DeviceOrientationEvent !== "undefined" &&
-      typeof DeviceOrientationEvent.requestPermission === "function"
-    ) {
-      DeviceOrientationEvent.requestPermission()
-        .then((response) => {
-          if (response === "granted") {
-            window.addEventListener("deviceorientation", handleGyro);
-            gyroBtn.style.display = "none";
-          } else {
-            alert("需要启用陀螺仪权限");
-          }
-        })
-        .catch((err) => {
-          alert("陀螺仪权限请求失败: " + err);
-        });
-    } else {
-      // Android 或已授权设备
-      window.addEventListener("deviceorientation", handleGyro);
-      gyroBtn.style.display = "none";
-    }
-  });
-}
-
-// ⬅️ 必须要定义在 sketch.js 里，避免报错
-function handleGyro(event) {
-  gyroX = event.gamma || 0; // 左右倾斜
-  gyroY = event.beta || 0;  // 前后倾斜
 }
 
 function draw() {
   background('#3273dc');
   Engine.update(engine);
 
-  // draw Z shape visually
+  // draw Z
   fill(255);
   noStroke();
   beginShape();
@@ -153,7 +119,7 @@ function draw() {
   drawBodies(imageBalls);
   drawBodies(outsideBalls);
 
-  // apply force based on device tilt
+  // apply gyro force
   let allBalls = imageBalls.concat(outsideBalls);
   let forceScale = 0.0005;
   for (let b of allBalls) {
