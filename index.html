@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
   <head>
-    <meta charset="UTF-8" />
+    <meta charset="utf-8" />
     <title>Project Z Motion</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <style>
-      html, body {
+      body {
         margin: 0;
         padding: 0;
         overflow: hidden;
@@ -29,9 +29,31 @@
   </head>
   <body>
     <button id="gyro-btn">启用陀螺仪</button>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.6.0/lib/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+    <script>
+      const gyroBtn = document.getElementById("gyro-btn");
+      gyroBtn.addEventListener("click", () => {
+        if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+          DeviceOrientationEvent.requestPermission()
+            .then(response => {
+              if (response === "granted") {
+                window.addEventListener("deviceorientation", handleGyro);
+                gyroBtn.style.display = "none";
+              } else {
+                alert("需要启用陀螺仪权限");
+              }
+            })
+            .catch(err => {
+              alert("陀螺仪权限请求失败: " + err);
+            });
+        } else {
+          // Android 或已允许权限的设备
+          window.addEventListener("deviceorientation", handleGyro);
+          gyroBtn.style.display = "none";
+        }
+      });
+    </script>
     <script src="sketch.js"></script>
   </body>
-</html>
+</html>  
