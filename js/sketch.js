@@ -7,13 +7,15 @@ let Engine = Matter.Engine,
 let imageBalls = [];
 let outsideBalls = [];
 let imgs = {};
-let canvasW = 375;
-let canvasH = 667;
+
+const CANVAS_W = 375;
+const CANVAS_H = 667;
 
 const NUM_INSIDE = 10;
 const NUM_EACH_OUTSIDE = 3;
 const outsideImages = ["1.png", "2.png", "3.png", "4.png"];
 
+// Z 轮廓
 const zContour = [
   [277.73, 83.5], [97.90, 83.5], [71.59, 109.82], [71.59, 129.24],
   [97.90, 155.56], [195.02, 155.56], [210.68, 178.11], [82.86, 506.43],
@@ -27,12 +29,6 @@ let yOffset = 0;
 let gyroX = 0;
 let gyroY = 0;
 
-// ✅ 注册为全局函数
-window.handleGyro = function (event) {
-  gyroX = event.gamma || 0;
-  gyroY = event.beta || 0;
-};
-
 function preload() {
   imgs.base = loadImage("type.png");
   for (let name of outsideImages) {
@@ -41,18 +37,18 @@ function preload() {
 }
 
 function setup() {
-  createCanvas(canvasW, canvasH);
+  createCanvas(windowWidth, windowHeight);
   engine = Engine.create();
   let world = engine.world;
 
-  // center offset
+  // 计算垂直偏移用于居中内容
   let allY = zContour.map(p => p[1]);
   let minY = Math.min(...allY);
   let maxY = Math.max(...allY);
   let shapeHeight = maxY - minY;
-  yOffset = height / 2 - (minY + shapeHeight / 2);
+  yOffset = CANVAS_H / 2 - (minY + shapeHeight / 2);
 
-  // walls
+  // 创建 Z 外墙
   for (let i = 0; i < zContour.length - 1; i++) {
     let a = zContour[i];
     let b = zContour[i + 1];
@@ -72,10 +68,10 @@ function setup() {
     World.add(world, wall);
   }
 
-  // inside balls
+  // Z 里的 ball
   for (let i = 0; i < NUM_INSIDE; i++) {
-    let x = 190;
-    let y = 300 + yOffset;
+    let x = CANVAS_W / 2;
+    let y = CANVAS_H / 2;
     let ball = Bodies.rectangle(x, y, 44, 10, {
       restitution: 0.5,
       frictionAir: 0.2
@@ -86,10 +82,10 @@ function setup() {
     World.add(world, ball);
   }
 
-  // outside balls
+  // 外部四张图
   for (let key of outsideImages) {
     for (let i = 0; i < NUM_EACH_OUTSIDE; i++) {
-      let x = random(30, 345);
+      let x = random(30, CANVAS_W - 30);
       let y = random(30, 100);
       let ball = Bodies.rectangle(x, y, 62, 50, {
         restitution: 0.5,
@@ -101,13 +97,33 @@ function setup() {
       World.add(world, ball);
     }
   }
+
+  // 陀螺仪监听
+  if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+    DeviceOrientationEvent.requestPermission().then(response => {
+      if (response === "granted") {
+        window.addEventListener("deviceorientation", handleGyro);
+      }
+    }).catch(console.error);
+  } else {
+    window.addEventListener("deviceorientation", handleGyro);
+  }
+}
+
+function handleGyro(event) {
+  gyroX = event.gamma || 0;
+  gyroY = event.beta || 0;
 }
 
 function draw() {
   background('#3273dc');
   Engine.update(engine);
 
-  // draw Z
+  // 居中画布内容
+  push();
+  translate(width / 2 - CANVAS_W / 2, height / 2 - CANVAS_H / 2);
+
+  // Z 形状
   fill(255);
   noStroke();
   beginShape();
@@ -119,7 +135,7 @@ function draw() {
   drawBodies(imageBalls);
   drawBodies(outsideBalls);
 
-  // apply gyro force
+  // 施加力
   let allBalls = imageBalls.concat(outsideBalls);
   let forceScale = 0.0005;
   for (let b of allBalls) {
@@ -127,6 +143,8 @@ function draw() {
     let fy = gyroY * forceScale;
     Body.applyForce(b, b.position, { x: fx, y: fy });
   }
+
+  pop();
 }
 
 function drawBodies(arr) {
