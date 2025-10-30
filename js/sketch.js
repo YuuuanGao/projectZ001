@@ -7,17 +7,13 @@ let Engine = Matter.Engine,
 let imageBalls = [];
 let outsideBalls = [];
 let imgs = {};
-let canvasW, canvasH;
+let canvasW = 375;
+let canvasH = 667;
 
-const NUM_INSIDE = 5;
-const NUM_EACH_OUTSIDE = 2;
+const NUM_INSIDE = 10;
+const NUM_EACH_OUTSIDE = 3;
 const outsideImages = ["1.png", "2.png", "3.png", "4.png"];
-const Z_IMAGE_WIDTH = 88;
-const Z_IMAGE_HEIGHT = 20;
-const OUT_IMAGE_WIDTH = 93;
-const OUT_IMAGE_HEIGHT = 75;
 
-// p5.js contour path
 const zContour = [
   [277.73, 83.5], [97.90, 83.5], [71.59, 109.82], [71.59, 129.24],
   [97.90, 155.56], [195.02, 155.56], [210.68, 178.11], [82.86, 506.43],
@@ -39,8 +35,6 @@ function preload() {
 }
 
 function setup() {
-  canvasW = windowWidth;
-  canvasH = windowHeight;
   createCanvas(canvasW, canvasH);
   engine = Engine.create();
   let world = engine.world;
@@ -52,7 +46,7 @@ function setup() {
   let shapeHeight = maxY - minY;
   yOffset = height / 2 - (minY + shapeHeight / 2);
 
-  // Z 内部轮廓墙壁
+  // create Z walls
   for (let i = 0; i < zContour.length - 1; i++) {
     let a = zContour[i];
     let b = zContour[i + 1];
@@ -72,44 +66,47 @@ function setup() {
     World.add(world, wall);
   }
 
-  // ✅ 屏幕边界墙体，防止飞出
-  let wallOptions = { isStatic: true, restitution: 1 };
-  let wallThickness = 100;
-  let leftWall = Bodies.rectangle(-wallThickness / 2, height / 2, wallThickness, height * 2, wallOptions);
-  let rightWall = Bodies.rectangle(width + wallThickness / 2, height / 2, wallThickness, height * 2, wallOptions);
-  let topWall = Bodies.rectangle(width / 2, -wallThickness / 2, width * 2, wallThickness, wallOptions);
-  let bottomWall = Bodies.rectangle(width / 2, height + wallThickness / 2, width * 2, wallThickness, wallOptions);
-  World.add(world, [leftWall, rightWall, topWall, bottomWall]);
+  // add screen edges
+  let thickness = 50;
+  let edges = [
+    Bodies.rectangle(width / 2, -thickness / 2, width, thickness, { isStatic: true }),
+    Bodies.rectangle(width / 2, height + thickness / 2, width, thickness, { isStatic: true }),
+    Bodies.rectangle(-thickness / 2, height / 2, thickness, height, { isStatic: true }),
+    Bodies.rectangle(width + thickness / 2, height / 2, thickness, height, { isStatic: true }),
+  ];
+  World.add(world, edges);
 
-  // Z 内部图片 type.png
+  // create inside balls
   for (let i = 0; i < NUM_INSIDE; i++) {
     let x = 190;
     let y = 300 + yOffset;
-    let ball = Bodies.rectangle(x, y, Z_IMAGE_WIDTH, Z_IMAGE_HEIGHT, {
+    let ball = Bodies.rectangle(x, y, 44, 10, {
       restitution: 0.5,
       frictionAir: 0.2
     });
     ball.imageKey = "base";
+    ball.isInside = true;
     imageBalls.push(ball);
     World.add(world, ball);
   }
 
-  // 外部图片 1~4.png
+  // create outside balls
   for (let key of outsideImages) {
     for (let i = 0; i < NUM_EACH_OUTSIDE; i++) {
-      let x = random(30, width - 30);
+      let x = random(30, 345);
       let y = random(30, 100);
-      let ball = Bodies.rectangle(x, y, OUT_IMAGE_WIDTH, OUT_IMAGE_HEIGHT, {
+      let ball = Bodies.rectangle(x, y, 62, 50, {
         restitution: 0.5,
         frictionAir: 0.2
       });
       ball.imageKey = key;
+      ball.isInside = false;
       outsideBalls.push(ball);
       World.add(world, ball);
     }
   }
 
-  // 启用陀螺仪监听
+  // handle gyroscope
   if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
     DeviceOrientationEvent.requestPermission().then(response => {
       if (response === "granted") {
@@ -122,15 +119,15 @@ function setup() {
 }
 
 function handleGyro(event) {
-  gyroX = event.gamma || 0; // 左右倾斜
-  gyroY = event.beta || 0;  // 前后倾斜
+  gyroX = event.gamma || 0;
+  gyroY = event.beta || 0;
 }
 
 function draw() {
   background('#3273dc');
   Engine.update(engine);
 
-  // 绘制 Z 区域
+  // draw Z shape
   fill(255);
   noStroke();
   beginShape();
@@ -139,26 +136,56 @@ function draw() {
   }
   endShape(CLOSE);
 
-  drawBodies(imageBalls, Z_IMAGE_WIDTH, Z_IMAGE_HEIGHT);
-  drawBodies(outsideBalls, OUT_IMAGE_WIDTH, OUT_IMAGE_HEIGHT);
+  drawBodies(imageBalls);
+  drawBodies(outsideBalls);
 
-  // 应用陀螺仪力
   let allBalls = imageBalls.concat(outsideBalls);
-  let forceScale = 0.0002;
+  let forceScale = 0.0005;
   for (let b of allBalls) {
     let fx = gyroX * forceScale;
     let fy = gyroY * forceScale;
     Body.applyForce(b, b.position, { x: fx, y: fy });
   }
+
+  // --- DEBUG INFO ---
+  fill(255);
+  textSize(12);
+  textAlign(LEFT, TOP);
+
+  let debugText = "Z Contour:\n";
+  for (let i = 0; i < zContour.length; i++) {
+    let pt = zContour[i];
+    debugText += `[${i}] ${pt[0].toFixed(2)}, ${(pt[1] + yOffset).toFixed(2)}\n`;
+  }
+
+  debugText += `\nInside Images:\n`;
+  for (let i = 0; i < imageBalls.length; i++) {
+    let b = imageBalls[i];
+    debugText += `type[${i}]: x=${b.position.x.toFixed(1)} y=${b.position.y.toFixed(1)} `;
+    debugText += `vx=${b.velocity.x.toFixed(2)} vy=${b.velocity.y.toFixed(2)} `;
+    debugText += `angle=${b.angle.toFixed(2)}\n`;
+  }
+
+  push();
+  noStroke();
+  fill(0, 150);
+  rect(0, 0, 320, height); // background for debug panel
+  fill(255);
+  text(debugText, 10, 10);
+  pop();
 }
 
-function drawBodies(arr, w, h) {
+function drawBodies(arr) {
   for (let b of arr) {
     push();
     translate(b.position.x, b.position.y);
     rotate(b.angle);
     imageMode(CENTER);
-    image(imgs[b.imageKey], 0, 0, w, h);
+    if (b.imageKey === "base") {
+      image(imgs[b.imageKey], 0, 0, 44, 10);
+    } else {
+      image(imgs[b.imageKey], 0, 0, 62, 50);
+    }
     pop();
   }
 }
