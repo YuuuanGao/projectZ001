@@ -9,13 +9,13 @@ let outsideBalls = [];
 let imgs = {};
 let canvasW, canvasH;
 
-const NUM_INSIDE = 10;
-const NUM_EACH_OUTSIDE = 3;
+const NUM_INSIDE = 5;
+const NUM_EACH_OUTSIDE = 2;
 const outsideImages = ["1.png", "2.png", "3.png", "4.png"];
-const Z_IMAGE_WIDTH = 44;
-const Z_IMAGE_HEIGHT = 10;
-const OUT_IMAGE_WIDTH = 62;
-const OUT_IMAGE_HEIGHT = 50;
+const Z_IMAGE_WIDTH = 88;
+const Z_IMAGE_HEIGHT = 20;
+const OUT_IMAGE_WIDTH = 93;
+const OUT_IMAGE_HEIGHT = 75;
 
 // p5.js contour path
 const zContour = [
@@ -144,7 +144,7 @@ function draw() {
 
   // 应用陀螺仪力
   let allBalls = imageBalls.concat(outsideBalls);
-  let forceScale = 0.0005;
+  let forceScale = 0.0002;
   for (let b of allBalls) {
     let fx = gyroX * forceScale;
     let fy = gyroY * forceScale;
