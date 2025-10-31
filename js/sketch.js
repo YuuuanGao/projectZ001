@@ -7,7 +7,7 @@ let engine;
 let boxes = [];
 let images = [];
 let boxCount = 4;
-let boxSize = 126;
+let boxSize = 156;
 let typeImg;
 
 let zContour = [
