@@ -3,11 +3,11 @@ let Engine = Matter.Engine,
     Bodies = Matter.Bodies,
     Body = Matter.Body;
 
-let engine, world;
+let engine;
 let boxes = [];
 let images = [];
-let boxCount = 8;
-let boxSize = 93;
+let boxCount = 12;
+let boxSize = 62;
 let typeImg;
 
 let zContour = [
@@ -32,16 +32,15 @@ function preload() {
 function setup() {
   createCanvas(windowWidth, windowHeight);
   engine = Engine.create();
-  world = engine.world;  // ✅ 全局 world 引用，修复力无效问题
+  let world = engine.world;
 
-  // Y方向偏移量使Z垂直居中
   let allY = zContour.map(p => p[1]);
   let minY = Math.min(...allY);
   let maxY = Math.max(...allY);
   let shapeHeight = maxY - minY;
   yOffset = height / 2 - (minY + shapeHeight / 2);
 
-  // 创建Z图形碰撞体
+  // 创建Z形边界
   let vertices = zContour.map(p => ({ x: p[0], y: p[1] + yOffset }));
   let shape = Bodies.fromVertices(width / 2, 0, vertices, {
     isStatic: true,
@@ -50,16 +49,16 @@ function setup() {
   }, true);
   World.add(world, shape);
 
-  // 墙体边界（上下左右）
-  let wallThickness = 100;
-  let edgePadding = 100;
-  let left = Bodies.rectangle(-wallThickness / 2, height / 2, wallThickness, height + edgePadding, { isStatic: true });
-  let right = Bodies.rectangle(width + wallThickness / 2, height / 2, wallThickness, height + edgePadding, { isStatic: true });
-  let topWall = Bodies.rectangle(width / 2, -wallThickness / 2, width, wallThickness, { isStatic: true });
-  let bottom = Bodies.rectangle(width / 2, height + wallThickness / 2, width, wallThickness, { isStatic: true });
+  // 屏幕四边墙壁
+  let edge = 100;
+  let thick = 100;
+  let left = Bodies.rectangle(-thick/2, height/2, thick, height + edge, { isStatic: true });
+  let right = Bodies.rectangle(width + thick/2, height/2, thick, height + edge, { isStatic: true });
+  let topWall = Bodies.rectangle(width/2, -thick/2, width, thick, { isStatic: true });
+  let bottom = Bodies.rectangle(width/2, height + thick/2, width, thick, { isStatic: true });
   World.add(world, [left, right, topWall, bottom]);
 
-  // 添加图像盒子
+  // 添加外部图片方块
   for (let i = 0; i < boxCount; i++) {
     let box = Bodies.rectangle(
       random(100, width - 100),
@@ -73,7 +72,7 @@ function setup() {
     boxes.push(box);
   }
 
-  // 创建陀螺仪按钮
+  // 启用陀螺仪按钮
   let btn = createButton('启用陀螺仪');
   btn.position(20, 20);
   btn.mousePressed(enableGyro);
@@ -83,14 +82,14 @@ function draw() {
   background("#3273dc");
   Engine.update(engine);
 
-  // 绘制 type.png 背景
-  push();
+  // 绘制Z图形背景
   imageMode(CENTER);
+  push();
   translate(width / 2, 0);
-  image(typeImg, 0, yOffset + 333, 400, 667); // 居中Z图像
+  image(typeImg, 0, yOffset + 333, 400, 667); // 居中显示Z形图像
   pop();
 
-  // 显示Z路径点坐标
+  // 绘制Z图形边界点数据
   fill(255, 255, 0);
   noStroke();
   textSize(12);
@@ -100,7 +99,7 @@ function draw() {
     text(`(${x.toFixed(1)}, ${y.toFixed(1)})`, x + 5, y);
   }
 
-  // 显示每个图片和其物理状态
+  // 绘制每个图片方块 + 数据
   for (let box of boxes) {
     let pos = box.position;
     let angle = box.angle;
@@ -113,11 +112,10 @@ function draw() {
     image(box.img, 0, 0, boxSize, boxSize);
     pop();
 
-    // 显示调试信息
     fill(255);
     textSize(10);
     textAlign(CENTER);
-    text(`(${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})\nv=(${v.x.toFixed(2)}, ${v.y.toFixed(2)})\nangle=${angle.toFixed(2)}`, pos.x, pos.y + boxSize / 2 + 30);
+    text(`(${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})\nv=(${v.x.toFixed(2)}, ${v.y.toFixed(2)})\nangle=${angle.toFixed(2)}`, pos.x, pos.y + boxSize/2 + 30);
   }
 }
 
@@ -136,6 +134,7 @@ function enableGyro() {
         alert("陀螺仪权限请求失败: " + err);
       });
   } else {
+    // Android 或桌面
     window.addEventListener('deviceorientation', handleOrientation);
     gyroEnabled = true;
   }
@@ -143,12 +142,14 @@ function enableGyro() {
 
 function handleOrientation(event) {
   if (!gyroEnabled) return;
-  let xAccel = event.gamma / 90;
-  let yAccel = event.beta / 90;
+
+  let xAccel = constrain(event.gamma / 90, -1, 1);
+  let yAccel = constrain(event.beta / 90, -1, 1);
+
   for (let box of boxes) {
-    Body.applyForce(box, box.position, {
-      x: xAccel * 0.002,
-      y: yAccel * 0.002
+    Body.setVelocity(box, {
+      x: xAccel * 10,
+      y: yAccel * 10
     });
   }
 }
