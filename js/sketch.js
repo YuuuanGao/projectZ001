@@ -41,13 +41,13 @@ function setup() {
   yOffset = height / 2 - (minY + shapeHeight / 2);
 
   // 创建Z形边界
-  let vertices = zContour.map(p => ({ x: p[0], y: p[1] + yOffset }));
-  let shape = Bodies.fromVertices(width / 2, 0, vertices, {
-    isStatic: true,
-    restitution: 1,
-    friction: 0.1
-  }, true);
-  World.add(world, shape);
+  // let vertices = zContour.map(p => ({ x: p[0], y: p[1] + yOffset }));
+  // let shape = Bodies.fromVertices(width / 2, 0, vertices, {
+  //   isStatic: true,
+  //   restitution: 1,
+  //   friction: 0.1
+  // }, true);
+  // World.add(world, shape);
 
   // 屏幕四边墙壁
   let edge = 100;
