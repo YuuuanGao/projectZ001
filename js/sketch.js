@@ -39,14 +39,12 @@ function setup() {
   engine = Engine.create();
   let world = engine.world;
 
-  // calculate vertical center offset
   let allY = zContour.map(p => p[1]);
   let minY = Math.min(...allY);
   let maxY = Math.max(...allY);
   let shapeHeight = maxY - minY;
   yOffset = height / 2 - (minY + shapeHeight / 2);
 
-  // create Z walls
   for (let i = 0; i < zContour.length - 1; i++) {
     let a = zContour[i];
     let b = zContour[i + 1];
@@ -66,17 +64,6 @@ function setup() {
     World.add(world, wall);
   }
 
-  // add screen edges
-  let thickness = 50;
-  let edges = [
-    Bodies.rectangle(width / 2, -thickness / 2, width, thickness, { isStatic: true }),
-    Bodies.rectangle(width / 2, height + thickness / 2, width, thickness, { isStatic: true }),
-    Bodies.rectangle(-thickness / 2, height / 2, thickness, height, { isStatic: true }),
-    Bodies.rectangle(width + thickness / 2, height / 2, thickness, height, { isStatic: true }),
-  ];
-  World.add(world, edges);
-
-  // create inside balls
   for (let i = 0; i < NUM_INSIDE; i++) {
     let x = 190;
     let y = 300 + yOffset;
@@ -85,12 +72,10 @@ function setup() {
       frictionAir: 0.2
     });
     ball.imageKey = "base";
-    ball.isInside = true;
     imageBalls.push(ball);
     World.add(world, ball);
   }
 
-  // create outside balls
   for (let key of outsideImages) {
     for (let i = 0; i < NUM_EACH_OUTSIDE; i++) {
       let x = random(30, 345);
@@ -100,22 +85,22 @@ function setup() {
         frictionAir: 0.2
       });
       ball.imageKey = key;
-      ball.isInside = false;
       outsideBalls.push(ball);
       World.add(world, ball);
     }
   }
 
-  // handle gyroscope
-  if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
-    DeviceOrientationEvent.requestPermission().then(response => {
-      if (response === "granted") {
-        window.addEventListener("deviceorientation", handleGyro);
-      }
-    }).catch(console.error);
-  } else {
-    window.addEventListener("deviceorientation", handleGyro);
-  }
+  // add edge walls
+  let edgeThickness = 50;
+  let walls = [
+    Bodies.rectangle(canvasW / 2, -edgeThickness / 2, canvasW, edgeThickness, { isStatic: true }), // top
+    Bodies.rectangle(canvasW / 2, canvasH + edgeThickness / 2, canvasW, edgeThickness, { isStatic: true }), // bottom
+    Bodies.rectangle(-edgeThickness / 2, canvasH / 2, edgeThickness, canvasH, { isStatic: true }), // left
+    Bodies.rectangle(canvasW + edgeThickness / 2, canvasH / 2, edgeThickness, canvasH, { isStatic: true }) // right
+  ];
+  World.add(world, walls);
+
+  window.addEventListener("deviceorientation", handleGyro);
 }
 
 function handleGyro(event) {
@@ -124,10 +109,9 @@ function handleGyro(event) {
 }
 
 function draw() {
-  background('#3273dc');
+  background("#3273dc");
   Engine.update(engine);
 
-  // draw Z shape
   fill(255);
   noStroke();
   beginShape();
@@ -138,41 +122,17 @@ function draw() {
 
   drawBodies(imageBalls);
   drawBodies(outsideBalls);
+  drawZLabels();
+}
 
-  let allBalls = imageBalls.concat(outsideBalls);
-  let forceScale = 0.0005;
-  for (let b of allBalls) {
-    let fx = gyroX * forceScale;
-    let fy = gyroY * forceScale;
-    Body.applyForce(b, b.position, { x: fx, y: fy });
-  }
-
-  // --- DEBUG INFO ---
-  fill(255);
-  textSize(12);
-  textAlign(LEFT, TOP);
-
-  let debugText = "Z Contour:\n";
-  for (let i = 0; i < zContour.length; i++) {
-    let pt = zContour[i];
-    debugText += `[${i}] ${pt[0].toFixed(2)}, ${(pt[1] + yOffset).toFixed(2)}\n`;
-  }
-
-  debugText += `\nInside Images:\n`;
-  for (let i = 0; i < imageBalls.length; i++) {
-    let b = imageBalls[i];
-    debugText += `type[${i}]: x=${b.position.x.toFixed(1)} y=${b.position.y.toFixed(1)} `;
-    debugText += `vx=${b.velocity.x.toFixed(2)} vy=${b.velocity.y.toFixed(2)} `;
-    debugText += `angle=${b.angle.toFixed(2)}\n`;
-  }
-
-  push();
+function drawZLabels() {
+  fill(255, 255, 0);
   noStroke();
-  fill(0, 150);
-  rect(0, 0, 320, height); // background for debug panel
-  fill(255);
-  text(debugText, 10, 10);
-  pop();
+  textSize(10);
+  for (let i = 0; i < zContour.length; i++) {
+    let [x, y] = zContour[i];
+    text(`(${x.toFixed(1)}, ${y.toFixed(1)})`, x + 5, y + yOffset);
+  }
 }
 
 function drawBodies(arr) {
@@ -186,6 +146,19 @@ function drawBodies(arr) {
     } else {
       image(imgs[b.imageKey], 0, 0, 62, 50);
     }
+
+    // draw data near the object
+    rotate(-b.angle);
+    fill(255);
+    textSize(9);
+    textAlign(CENTER);
+    text(`(${b.position.x.toFixed(1)}, ${b.position.y.toFixed(1)})`, 0, -30);
+    text(`v=(${b.velocity.x.toFixed(2)}, ${b.velocity.y.toFixed(2)})`, 0, -20);
+    text(`angle=${b.angle.toFixed(2)}`, 0, -10);
     pop();
+
+    let fx = gyroX * 0.0005;
+    let fy = gyroY * 0.0005;
+    Body.applyForce(b, b.position, { x: fx, y: fy });
   }
 }
