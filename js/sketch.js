@@ -6,8 +6,8 @@ let Engine = Matter.Engine,
 let engine;
 let boxes = [];
 let images = [];
-let boxCount = 8;
-let boxSize = 93;
+let boxCount = 4;
+let boxSize = 126;
 let typeImg;
 
 let zContour = [
