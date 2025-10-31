@@ -1,20 +1,20 @@
+// ✅ 完整 sketch.js，已采用方法2修复背景不满屏问题，支持陀螺仪与物理碰撞
+// 👉 注意：请确保 type.png 和 1.png ~ 4.png 与此 JS 位于同一目录或路径正确
+
 let Engine = Matter.Engine,
     World = Matter.World,
     Bodies = Matter.Bodies,
     Body = Matter.Body,
-    engine;
+    Composite = Matter.Composite;
 
-let imageBalls = [];
-let outsideBalls = [];
-let imgs = {};
-let canvasW = 375;
-let canvasH = 667;
+let engine;
+let boxes = [];
+let images = [];
+let boxCount = 12;
+let boxSize = 62;
+let typeImg;
 
-const NUM_INSIDE = 10;
-const NUM_EACH_OUTSIDE = 3;
-const outsideImages = ["1.png", "2.png", "3.png", "4.png"];
-
-const zContour = [
+let zContour = [
   [277.73, 83.5], [97.90, 83.5], [71.59, 109.82], [71.59, 129.24],
   [97.90, 155.56], [195.02, 155.56], [210.68, 178.11], [82.86, 506.43],
   [80.98, 516.46], [80.98, 557.18], [106.67, 583.5], [268.33, 583.5],
@@ -23,19 +23,18 @@ const zContour = [
   [277.73, 83.5]
 ];
 
+let gyroEnabled = false;
 let yOffset = 0;
-let gyroX = 0;
-let gyroY = 0;
 
 function preload() {
-  imgs.base = loadImage("type.png");
-  for (let name of outsideImages) {
-    imgs[name] = loadImage(name);
+  for (let i = 1; i <= 4; i++) {
+    images.push(loadImage(`./${i}.png`));
   }
+  typeImg = loadImage("./type.png");
 }
 
 function setup() {
-  createCanvas(canvasW, canvasH);
+  createCanvas(windowWidth, windowHeight);
   engine = Engine.create();
   let world = engine.world;
 
@@ -45,120 +44,113 @@ function setup() {
   let shapeHeight = maxY - minY;
   yOffset = height / 2 - (minY + shapeHeight / 2);
 
-  for (let i = 0; i < zContour.length - 1; i++) {
-    let a = zContour[i];
-    let b = zContour[i + 1];
-    let ax = a[0];
-    let ay = a[1] + yOffset;
-    let bx = b[0];
-    let by = b[1] + yOffset;
-    let wall = Bodies.rectangle(
-      (ax + bx) / 2, (ay + by) / 2,
-      dist(ax, ay, bx, by), 5,
-      {
-        isStatic: true,
-        angle: atan2(by - ay, bx - ax),
-        render: { visible: false }
-      }
+  // 创建图形边界
+  let vertices = zContour.map(p => ({ x: p[0], y: p[1] + yOffset }));
+  let shape = Bodies.fromVertices(width / 2, 0, vertices, {
+    isStatic: true,
+    restitution: 1,
+    friction: 0.1
+  }, true);
+  World.add(world, shape);
+
+  // 创建边界墙体
+  let edgePadding = 100;
+  let thickness = 100;
+  let left = Bodies.rectangle(-thickness/2, height/2, thickness, height + edgePadding, { isStatic: true });
+  let right = Bodies.rectangle(width + thickness/2, height/2, thickness, height + edgePadding, { isStatic: true });
+  let topWall = Bodies.rectangle(width / 2, -thickness/2, width, thickness, { isStatic: true });
+  let bottom = Bodies.rectangle(width / 2, height + thickness/2, width, thickness, { isStatic: true });
+  World.add(world, [left, right, topWall, bottom]);
+
+  for (let i = 0; i < boxCount; i++) {
+    let box = Bodies.rectangle(
+      random(100, width - 100),
+      random(100, height - 200),
+      boxSize,
+      boxSize,
+      { restitution: 0.7, friction: 0.3 }
     );
-    World.add(world, wall);
+    box.img = images[i % images.length];
+    World.add(world, box);
+    boxes.push(box);
   }
 
-  for (let i = 0; i < NUM_INSIDE; i++) {
-    let x = 190;
-    let y = 300 + yOffset;
-    let ball = Bodies.rectangle(x, y, 44, 10, {
-      restitution: 0.5,
-      frictionAir: 0.2
-    });
-    ball.imageKey = "base";
-    imageBalls.push(ball);
-    World.add(world, ball);
-  }
-
-  for (let key of outsideImages) {
-    for (let i = 0; i < NUM_EACH_OUTSIDE; i++) {
-      let x = random(30, 345);
-      let y = random(30, 100);
-      let ball = Bodies.rectangle(x, y, 62, 50, {
-        restitution: 0.5,
-        frictionAir: 0.2
-      });
-      ball.imageKey = key;
-      outsideBalls.push(ball);
-      World.add(world, ball);
-    }
-  }
-
-  // add edge walls
-  let edgeThickness = 50;
-  let walls = [
-    Bodies.rectangle(canvasW / 2, -edgeThickness / 2, canvasW, edgeThickness, { isStatic: true }), // top
-    Bodies.rectangle(canvasW / 2, canvasH + edgeThickness / 2, canvasW, edgeThickness, { isStatic: true }), // bottom
-    Bodies.rectangle(-edgeThickness / 2, canvasH / 2, edgeThickness, canvasH, { isStatic: true }), // left
-    Bodies.rectangle(canvasW + edgeThickness / 2, canvasH / 2, edgeThickness, canvasH, { isStatic: true }) // right
-  ];
-  World.add(world, walls);
-
-  window.addEventListener("deviceorientation", handleGyro);
-}
-
-function handleGyro(event) {
-  gyroX = event.gamma || 0;
-  gyroY = event.beta || 0;
+  // 启用陀螺仪按钮
+  let btn = createButton('启用陀螺仪');
+  btn.position(20, 20);
+  btn.mousePressed(enableGyro);
 }
 
 function draw() {
   background("#3273dc");
   Engine.update(engine);
 
-  fill(255);
-  noStroke();
-  beginShape();
-  for (let pt of zContour) {
-    vertex(pt[0], pt[1] + yOffset);
-  }
-  endShape(CLOSE);
+  // 绘制 Z 图形
+  imageMode(CENTER);
+  push();
+  translate(width / 2, 0);
+  image(typeImg, 0, yOffset + 333, 400, 667); // 可调整尺寸居中
+  pop();
 
-  drawBodies(imageBalls);
-  drawBodies(outsideBalls);
-  drawZLabels();
-}
-
-function drawZLabels() {
+  // 绘制边界点文字
   fill(255, 255, 0);
   noStroke();
-  textSize(10);
-  for (let i = 0; i < zContour.length; i++) {
-    let [x, y] = zContour[i];
-    text(`(${x.toFixed(1)}, ${y.toFixed(1)})`, x + 5, y + yOffset);
+  textSize(12);
+  for (let pt of zContour) {
+    let x = pt[0] + width / 2;
+    let y = pt[1] + yOffset;
+    text(`(${x.toFixed(1)}, ${y.toFixed(1)})`, x + 5, y);
+  }
+
+  // 绘制图片和调试信息
+  for (let box of boxes) {
+    let pos = box.position;
+    let angle = box.angle;
+    let v = box.velocity;
+    push();
+    translate(pos.x, pos.y);
+    rotate(angle);
+    imageMode(CENTER);
+    image(box.img, 0, 0, boxSize, boxSize);
+    pop();
+
+    // 显示调试数据
+    fill(255);
+    textSize(10);
+    textAlign(CENTER);
+    text(`(${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})\nv=(${v.x.toFixed(2)}, ${v.y.toFixed(2)})\nangle=${angle.toFixed(2)}`, pos.x, pos.y + boxSize/2 + 30);
   }
 }
 
-function drawBodies(arr) {
-  for (let b of arr) {
-    push();
-    translate(b.position.x, b.position.y);
-    rotate(b.angle);
-    imageMode(CENTER);
-    if (b.imageKey === "base") {
-      image(imgs[b.imageKey], 0, 0, 44, 10);
-    } else {
-      image(imgs[b.imageKey], 0, 0, 62, 50);
-    }
+function enableGyro() {
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then(response => {
+        if (response === 'granted') {
+          window.addEventListener('deviceorientation', handleOrientation);
+          gyroEnabled = true;
+        } else {
+          alert("用户拒绝了陀螺仪权限。");
+        }
+      })
+      .catch(err => {
+        alert("陀螺仪权限请求失败: " + err);
+      });
+  } else {
+    // Android or desktop
+    window.addEventListener('deviceorientation', handleOrientation);
+    gyroEnabled = true;
+  }
+}
 
-    // draw data near the object
-    rotate(-b.angle);
-    fill(255);
-    textSize(9);
-    textAlign(CENTER);
-    text(`(${b.position.x.toFixed(1)}, ${b.position.y.toFixed(1)})`, 0, -30);
-    text(`v=(${b.velocity.x.toFixed(2)}, ${b.velocity.y.toFixed(2)})`, 0, -20);
-    text(`angle=${b.angle.toFixed(2)}`, 0, -10);
-    pop();
-
-    let fx = gyroX * 0.0005;
-    let fy = gyroY * 0.0005;
-    Body.applyForce(b, b.position, { x: fx, y: fy });
+function handleOrientation(event) {
+  if (!gyroEnabled) return;
+  let xAccel = event.gamma / 90;
+  let yAccel = event.beta / 90;
+  for (let box of boxes) {
+    Body.applyForce(box, box.position, {
+      x: xAccel * 0.002,
+      y: yAccel * 0.002
+    });
   }
 }
