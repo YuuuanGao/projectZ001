@@ -1,20 +1,7 @@
-// ✅ 完整 sketch.js，已采用方法2修复背景不满屏问题，支持陀螺仪与物理碰撞
-// 👉 注意：请确保 type.png 和 1.png ~ 4.png 与此 JS 位于同一目录或路径正确
-
-let Engine = Matter.Engine,
-    World = Matter.World,
-    Bodies = Matter.Bodies,
-    Body = Matter.Body,
-    Composite = Matter.Composite;
-
-let engine;
-let boxes = [];
-let images = [];
-let boxCount = 12;
-let boxSize = 62;
-let typeImg;
-
-let zContour = [
+let engine, world;
+let books = [];
+let images = {};
+let zVertices = [
   [277.73, 83.5], [97.90, 83.5], [71.59, 109.82], [71.59, 129.24],
   [97.90, 155.56], [195.02, 155.56], [210.68, 178.11], [82.86, 506.43],
   [80.98, 516.46], [80.98, 557.18], [106.67, 583.5], [268.33, 583.5],
@@ -22,135 +9,131 @@ let zContour = [
   [177.47, 488.89], [302.16, 160.57], [303.41, 150.54], [303.41, 109.82],
   [277.73, 83.5]
 ];
-
-let gyroEnabled = false;
-let yOffset = 0;
+let gyroData = null;
+let started = false;
 
 function preload() {
   for (let i = 1; i <= 4; i++) {
-    images.push(loadImage(`./${i}.png`));
+    images[i] = loadImage(`js/${i}.png`);
   }
-  typeImg = loadImage("./type.png");
+  images["type"] = loadImage("js/type.png");
 }
 
 function setup() {
   createCanvas(windowWidth, windowHeight);
-  engine = Engine.create();
-  let world = engine.world;
+  engine = Matter.Engine.create();
+  world = engine.world;
+  world.gravity.y = 1;
 
-  let allY = zContour.map(p => p[1]);
-  let minY = Math.min(...allY);
-  let maxY = Math.max(...allY);
-  let shapeHeight = maxY - minY;
-  yOffset = height / 2 - (minY + shapeHeight / 2);
-
-  // 创建图形边界
-  let vertices = zContour.map(p => ({ x: p[0], y: p[1] + yOffset }));
-  let shape = Bodies.fromVertices(width / 2, 0, vertices, {
-    isStatic: true,
-    restitution: 1,
-    friction: 0.1
-  }, true);
-  World.add(world, shape);
-
-  // 创建边界墙体
-  let edgePadding = 100;
+  // 边界
   let thickness = 100;
-  let left = Bodies.rectangle(-thickness/2, height/2, thickness, height + edgePadding, { isStatic: true });
-  let right = Bodies.rectangle(width + thickness/2, height/2, thickness, height + edgePadding, { isStatic: true });
-  let topWall = Bodies.rectangle(width / 2, -thickness/2, width, thickness, { isStatic: true });
-  let bottom = Bodies.rectangle(width / 2, height + thickness/2, width, thickness, { isStatic: true });
-  World.add(world, [left, right, topWall, bottom]);
+  let options = { isStatic: true };
+  Matter.World.add(world, [
+    Matter.Bodies.rectangle(width / 2, -thickness / 2, width, thickness, options),
+    Matter.Bodies.rectangle(width / 2, height + thickness / 2, width, thickness, options),
+    Matter.Bodies.rectangle(-thickness / 2, height / 2, thickness, height, options),
+    Matter.Bodies.rectangle(width + thickness / 2, height / 2, thickness, height, options)
+  ]);
 
-  for (let i = 0; i < boxCount; i++) {
-    let box = Bodies.rectangle(
-      random(100, width - 100),
-      random(100, height - 200),
-      boxSize,
-      boxSize,
-      { restitution: 0.7, friction: 0.3 }
-    );
-    box.img = images[i % images.length];
-    World.add(world, box);
-    boxes.push(box);
+  // 添加所有书本
+  createBooks();
+}
+
+function createBooks() {
+  for (let key in images) {
+    let img = images[key];
+    let isMain = key === "type";
+    let x = random(width * 0.1, width * 0.9);
+    let y = random(height * 0.1, height * 0.3);
+    let w = isMain ? width : img.width / 2.5;
+    let h = isMain ? height : img.height / 2.5;
+
+    let body = Matter.Bodies.rectangle(x, y, w, h, {
+      restitution: 0.5,
+      friction: 0.5
+    });
+
+    Matter.World.add(world, body);
+    books.push({
+      body: body,
+      img: img,
+      isMain: isMain
+    });
   }
-
-  // 启用陀螺仪按钮
-  let btn = createButton('启用陀螺仪');
-  btn.position(20, 20);
-  btn.mousePressed(enableGyro);
 }
 
 function draw() {
-  background("#3273dc");
-  Engine.update(engine);
+  background("#1D68F1"); // 背景色填满
+  Matter.Engine.update(engine);
 
-  // 绘制 Z 图形
-  imageMode(CENTER);
-  push();
-  translate(width / 2, 0);
-  image(typeImg, 0, yOffset + 333, 400, 667); // 可调整尺寸居中
-  pop();
-
-  // 绘制边界点文字
-  fill(255, 255, 0);
+  // Z 边界点标注
+  fill("yellow");
+  textSize(14);
   noStroke();
-  textSize(12);
-  for (let pt of zContour) {
-    let x = pt[0] + width / 2;
-    let y = pt[1] + yOffset;
-    text(`(${x.toFixed(1)}, ${y.toFixed(1)})`, x + 5, y);
+  for (let pt of zVertices) {
+    text(`(${pt[0].toFixed(1)}, ${pt[1].toFixed(1)})`, pt[0], pt[1]);
   }
 
-  // 绘制图片和调试信息
-  for (let box of boxes) {
-    let pos = box.position;
-    let angle = box.angle;
-    let v = box.velocity;
+  // 绘制图像 + 物理体状态
+  for (let book of books) {
+    let pos = book.body.position;
+    let angle = book.body.angle;
     push();
     translate(pos.x, pos.y);
     rotate(angle);
     imageMode(CENTER);
-    image(box.img, 0, 0, boxSize, boxSize);
+    image(book.img, 0, 0, book.isMain ? width : book.img.width / 2.5, book.isMain ? height : book.img.height / 2.5);
     pop();
 
-    // 显示调试数据
+    // 文字信息标注
     fill(255);
-    textSize(10);
-    textAlign(CENTER);
-    text(`(${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})\nv=(${v.x.toFixed(2)}, ${v.y.toFixed(2)})\nangle=${angle.toFixed(2)}`, pos.x, pos.y + boxSize/2 + 30);
+    textSize(12);
+    noStroke();
+    let v = book.body.velocity;
+    text(
+      `(${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})\n` +
+      `v=(${v.x.toFixed(2)}, ${v.y.toFixed(2)})\n` +
+      `angle=${angle.toFixed(2)}`,
+      pos.x + 10,
+      pos.y - 10
+    );
+  }
+
+  if (started && gyroData) {
+    applyGyroForce();
+  }
+}
+
+function applyGyroForce() {
+  let forceX = gyroData.gamma * 0.0005;
+  let forceY = gyroData.beta * 0.0005;
+
+  for (let book of books) {
+    Matter.Body.applyForce(book.body, book.body.position, {
+      x: forceX * book.body.mass,
+      y: forceY * book.body.mass
+    });
   }
 }
 
 function enableGyro() {
-  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+  if (typeof DeviceOrientationEvent !== "undefined" &&
+      typeof DeviceOrientationEvent.requestPermission === "function") {
     DeviceOrientationEvent.requestPermission()
-      .then(response => {
-        if (response === 'granted') {
-          window.addEventListener('deviceorientation', handleOrientation);
-          gyroEnabled = true;
-        } else {
-          alert("用户拒绝了陀螺仪权限。");
+      .then(permissionState => {
+        if (permissionState === "granted") {
+          window.addEventListener("deviceorientation", handleOrientation);
+          started = true;
         }
       })
-      .catch(err => {
-        alert("陀螺仪权限请求失败: " + err);
-      });
+      .catch(console.error);
   } else {
-    // Android or desktop
-    window.addEventListener('deviceorientation', handleOrientation);
-    gyroEnabled = true;
+    // 非 iOS
+    window.addEventListener("deviceorientation", handleOrientation);
+    started = true;
   }
 }
 
 function handleOrientation(event) {
-  if (!gyroEnabled) return;
-  let xAccel = event.gamma / 90;
-  let yAccel = event.beta / 90;
-  for (let box of boxes) {
-    Body.applyForce(box, box.position, {
-      x: xAccel * 0.002,
-      y: yAccel * 0.002
-    });
-  }
+  gyroData = event;
 }
