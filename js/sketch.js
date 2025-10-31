@@ -6,8 +6,8 @@ let Engine = Matter.Engine,
 let engine;
 let boxes = [];
 let images = [];
-let boxCount = 12;
-let boxSize = 62;
+let boxCount = 8;
+let boxSize = 93;
 let typeImg;
 
 let zContour = [
@@ -90,14 +90,14 @@ function draw() {
   pop();
 
   // 绘制Z图形边界点数据
-  fill(255, 255, 0);
-  noStroke();
-  textSize(12);
-  for (let pt of zContour) {
-    let x = pt[0] + width / 2;
-    let y = pt[1] + yOffset;
-    text(`(${x.toFixed(1)}, ${y.toFixed(1)})`, x + 5, y);
-  }
+  // fill(255, 255, 0);
+  // noStroke();
+  // textSize(12);
+  // for (let pt of zContour) {
+  //   let x = pt[0] + width / 2;
+  //   let y = pt[1] + yOffset;
+  //   text(`(${x.toFixed(1)}, ${y.toFixed(1)})`, x + 5, y);
+  // }
 
   // 绘制每个图片方块 + 数据
   for (let box of boxes) {
@@ -112,8 +112,8 @@ function draw() {
     image(box.img, 0, 0, boxSize, boxSize);
     pop();
 
-    fill(255);
-    textSize(10);
+    fill(252, 3, 223);
+    textSize(15);
     textAlign(CENTER);
     text(`(${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})\nv=(${v.x.toFixed(2)}, ${v.y.toFixed(2)})\nangle=${angle.toFixed(2)}`, pos.x, pos.y + boxSize/2 + 30);
   }
